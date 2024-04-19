@@ -1,0 +1,13 @@
+import control as ctl
+import matplotlib.pyplot as plt
+
+# 假设系统和控制器的传递函数已定义
+system_tf = ctl.TransferFunction([1], [1, 2, 1])  # 示例系统传递函数
+controller_tf = ctl.TransferFunction([2], [1, 2])  # 示例控制器传递函数
+
+# 闭环系统传递函数
+closed_loop_tf = ctl.feedback(ctl.series(controller_tf, system_tf), 1)
+
+# 绘制伯德图
+mag, phase, omega = ctl.bode(closed_loop_tf)
+plt.show()
