@@ -1,0 +1,48 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import control as ctrl
+
+# 系统矩阵
+A = np.array([[-1, -2], [3, -4]])
+B = np.array([[5], [6]])
+C = np.array([[7, 8]])
+D = np.array([[9]])
+
+# 创建状态空间系统
+system = ctrl.StateSpace(A, B, C, D)
+
+# 时间参数
+T = np.linspace(0, 10, 100)  # 从0到10秒，100个时间点
+U = np.ones(len(T))  # 使用单位阶跃函数作为输入，确保U是一维数组
+
+# 模拟系统响应（无噪声）
+T, Y = ctrl.forced_response(system, T, U)
+
+# 添加输入噪声
+input_noise = 0.1 * np.random.randn(len(T))  # 定义输入噪声的强度
+T, Y_noise = ctrl.forced_response(system, T, U + input_noise)
+
+# 添加输出噪声
+output_noise = 0.1 * np.random.randn(len(T))  # 定义输出噪声的强度
+Y_noise_output = Y + output_noise
+
+# 绘制结果
+plt.figure(figsize=(10, 8))
+plt.subplot(211)
+plt.plot(T, Y, label='Without Noise')
+plt.plot(T, Y_noise, label='With Input Noise')
+plt.title('System Response with Input Noise')
+plt.xlabel('Time (s)')
+plt.ylabel('Output')
+plt.legend()
+
+plt.subplot(212)
+plt.plot(T, Y, label='Without Noise')
+plt.plot(T, Y_noise_output, label='With Output Noise')
+plt.title('System Response with Output Noise')
+plt.xlabel('Time (s)')
+plt.ylabel('Output')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
