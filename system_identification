@@ -1,0 +1,61 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import chirp, lfilter, correlate
+from scipy.stats import pearsonr
+
+# 参数定义
+t_end = 10
+fs = 1000
+t = np.linspace(0, t_end, t_end * fs)
+input_signals = [chirp(t, f0=10, f1=200, t1=t_end, method='linear'),
+                 chirp(t, f0=5, f1=150, t1=t_end, method='linear')]
+
+from scipy.signal import lfilter
+
+# 假设每个通道都是一阶滤波器
+b_coefficients = np.array([[1, 0.5], [0.5, 1]])  # 这里的b系数仍旧简化处理，只是常数乘法
+a_coefficients = np.array([[1, 0.2], [1, 0.3]])  # 每个通道具有不同的一阶滤波器行为
+
+# 计算输出
+outputs = [np.zeros_like(t) for _ in range(2)]
+for i in range(2):
+    for j in range(2):
+        outputs[i] += lfilter([b_coefficients[i, j]], [1, -a_coefficients[i, j]], input_signals[j])
+
+
+# 最小二乘法辨识
+X = np.vstack(input_signals).T
+Y = np.vstack(outputs).T
+
+# 解最小二乘问题
+params, residuals, rank, s = np.linalg.lstsq(X, Y, rcond=None)
+
+# 使用估计参数生成预测输出
+predicted_outputs = X @ params
+
+# 冗余相关性分析
+# 计算输入和实际输出之间的相关性
+input_output_correlation = [pearsonr(input_signals[i], outputs[j])[0] for i in range(2) for j in range(2)]
+
+# 计算预测输出和实际输出之间的相关性
+model_output_correlation = [pearsonr(predicted_outputs[:, i], Y[:, i])[0] for i in range(2)]
+
+# 结果展示
+plt.figure(figsize=(12, 6))
+for i in range(2):
+    plt.subplot(2, 1, i + 1)
+    plt.plot(t, outputs[i], label='Actual Output')
+    plt.plot(t, predicted_outputs[:, i], '--', label='Estimated Output')
+    plt.title(f'Output {i + 1}')
+    plt.legend()
+
+plt.tight_layout()
+plt.show()
+
+# 打印参数和相关性
+print("Estimated system coefficients (from input to each output):")
+print(params)
+print("\nInput-Output Correlation Coefficients:")
+print(input_output_correlation)
+print("\nModel-Output Correlation Coefficients:")
+print(model_output_correlation)
