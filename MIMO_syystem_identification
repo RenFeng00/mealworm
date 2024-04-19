@@ -1,0 +1,73 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import cont2discrete, dlti, dlsim
+
+# Define continuous-time transfer functions coefficients
+coefficients = {
+    's1': 1,  # Time constant for input 1 to output 1
+    's2': 2,  # Time constant for input 1 to output 2
+    's3': 3,  # Time constant for input 2 to output 1
+    's4': 4   # Time constant for input 2 to output 2
+}
+
+# Sampling time
+T = 0.1  # Sampling time in seconds
+
+# Discretize each transfer function using Tustin's method
+discrete_systems = {}
+for key, s in coefficients.items():
+    num = [s if '1' in key else s*2]
+    den = [1, s]
+    discrete_systems[key] = cont2discrete((num, den), T, method='tustin')
+
+# System identification setup
+frequency = 1.0  # frequency in Hz for system identification
+n_samples = 100
+t = np.linspace(0, n_samples * T, n_samples, endpoint=False)
+input_signal = np.sin(2 * np.pi * frequency * t)
+
+# Simulation of the MIMO system output
+# Assume input 1 affects both outputs, and input 2 does the same
+input_matrix = np.vstack([input_signal, input_signal]).T  # same input to both channels for simplification
+
+# Placeholder matrices for simulation (assuming simple system response calculation)
+output_signal = np.zeros((n_samples, 2))
+
+for key, system in discrete_systems.items():
+    # Simulate the response for each system independently
+    d_system = dlti(system[0].flatten(), system[1].flatten(), dt=T)
+    tout, yout = dlsim(d_system, input_signal)
+
+    # Assign the output to the correct place
+    if '1' in key:
+        output_signal[:, 0] += yout.flatten()
+    else:
+        output_signal[:, 1] += yout.flatten()
+
+
+# Plot the system inputs and outputs for visualization
+plt.figure(figsize=(12, 6))
+plt.subplot(211)
+plt.plot(t, input_signal, label='Input Signal')
+plt.title('Input Signal')
+plt.legend()
+
+plt.subplot(212)
+plt.plot(t, output_signal[:, 0], label='Output 1')
+plt.plot(t, output_signal[:, 1], label='Output 2')
+plt.title('System Output Signals')
+plt.legend()
+plt.show()
+
+# System identification using least squares
+# Construct the data matrix X from lagged inputs and apply least squares
+X = np.vstack([np.roll(input_signal, i) for i in range(2)]).T  # using 2 lags as example
+X = X[2:]  # Remove first two rows which contain zeros from rolling
+y = output_signal[2:, :]  # Adjust outputs to match the rows in X
+
+# Apply least squares estimation
+theta = np.linalg.lstsq(X, y, rcond=None)[0]
+
+# Display estimated parameters
+print("Estimated Parameters:")
+print(theta)
