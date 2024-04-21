@@ -1,0 +1,76 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
+
+class PIDController:
+    def __init__(self, Kp, Ki, Kd, max_rate):
+        self.Kp = np.float64(Kp)
+        self.Ki = np.float64(Ki)
+        self.Kd = np.float64(Kd)
+        self.max_rate = np.float64(max_rate)
+        self.integral = np.float64(0)
+        self.last_error = np.float64(0)
+        self.last_output = np.float64(0)
+        self.error_log = []
+
+    def update(self, error, dt, current_time):
+        self.integral += error * dt
+        derivative = (error - self.last_error) / dt if dt > 0 else 0
+        output = self.Kp * error + self.Ki * self.integral + self.Kd * derivative
+        rate_change = (output - self.last_output) / dt if dt > 0 else 0
+        if abs(rate_change) > self.max_rate:
+            output = self.last_output + np.sign(rate_change) * self.max_rate * dt
+        self.last_output = output
+        self.last_error = error
+        return output
+
+def complex_trajectory(t, A, B, f, phase_shift, t_max):
+    if t < t_max / 3:
+        return A * (t / (t_max / 3)) * np.sin(2 * np.pi * f * t + phase_shift)
+    elif t < 2 * t_max / 3:
+        return A * np.sin(2 * np.pi * f * t + phase_shift)
+    else:
+        return A * ((t_max - t) / (t_max / 3)) * np.sin(2 * np.pi * f * t + phase_shift)
+
+def model(t, y, pid, A, B, f, phase_shift, t_max, dt):
+    x, x_dot = y
+    y_d = complex_trajectory(t, A, B, f, phase_shift, t_max)
+    error = y_d - x
+    u_pid = pid.update(error, dt, t)
+    dxdt = x_dot
+    dx_dot_dt = (-k * x - c * x_dot + u_pid) / m
+    return [dxdt, dx_dot_dt]
+
+# System and PID parameters initialization
+m = 1.0  # mass
+c = 0.5  # damping coefficient
+k = 20.0  # spring constant
+Kp, Ki, Kd, max_rate = 150, 20, 50, 10000
+
+# Trajectory and simulation settings
+A, B, f, phase_shift, t_max = 1.0, 0, 0.5, 0, 10
+t_span = [0, t_max]
+
+servo_frequencies = [10000, 20000, 30000, 40000]
+plt.figure(figsize=(10, 5))
+
+for freq in servo_frequencies:
+    t_eval = np.linspace(t_span[0], t_span[1], freq)
+    dt = t_eval[1] - t_eval[0]  # Time step for numerical simulation
+    y0 = [0, 0]
+    pid = PIDController(Kp, Ki, Kd, max_rate)
+    
+    # Solve ODE and manually log errors at each t_eval
+    sol = solve_ivp(lambda t, y: model(t, y, pid, A, B, f, phase_shift, t_max, dt), t_span, y0, t_eval=t_eval)
+    errors = [complex_trajectory(t, A, B, f, phase_shift, t_max) - y[0] for t, y in zip(sol.t, sol.y.T)]
+    pid.error_log = errors  # Manually update the error log
+    
+    # Plot results on the same graph
+    plt.plot(sol.t, pid.error_log, label=f'Error at {freq} Hz')
+
+plt.title('Control Error Over Time for Different Frequencies')
+plt.xlabel('Time (seconds)')
+plt.ylabel('Error')
+plt.legend()
+plt.grid(True)
+plt.show()
