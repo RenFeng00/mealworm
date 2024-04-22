@@ -1,0 +1,64 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import chirp
+
+# 参数定义
+time = 300  # 总时间样本数
+sampling = 0.05  # 采样间隔
+t = np.linspace(0, time * sampling, time)  # 生成时间数组
+
+# 生成chirp信号
+start_freq = 0.1  # 起始频率（Hz）
+end_freq = 1.0  # 结束频率（Hz）
+input_chirp = chirp(t, f0=start_freq, f1=end_freq, t1=time * sampling, method='linear')
+
+# 重塑input_chirp以匹配模型输入要求 (1, time)
+input_ident = input_chirp.reshape(1, time)
+x0_ident=np.random.rand(4,1)
+# 用chirp信号替代原始随机信号进行系统模拟
+Y_ident, X_ident = systemSimulate(A, B, C, input_ident, x0_ident)
+
+
+#  end of parameter definition
+###############################################################################
+
+###############################################################################
+# model estimation and validation
+
+# estimate the Markov parameters
+past_value=10 # this is the past window - p 
+Markov,Z, Y_p_p_l =estimateMarkovParameters(input_ident,Y_ident,past_value)
+
+# estimate the system matrices
+model_order=3 # this is the model order \hat{n}
+Aid,Atilde,Bid,Kid,Cid,s_singular,X_p_p_l = estimateModel(input_ident,Y_ident,Markov,Z,past_value,past_value,model_order)  
+
+plt.plot(s_singular, 'x',markersize=8)
+plt.xlabel('Singular value index')
+plt.ylabel('Singular value magnitude')
+plt.yscale('log')
+#plt.savefig('singular_values.png')
+plt.show()
+
+# estimate the initial state of the validation data
+h=10 # window for estimating the initial state
+x0est=estimateInitial(Aid,Bid,Cid,input_ident,Y_ident,h)
+
+# simulate the open loop model 
+Y_val_prediction,X_val_prediction = systemSimulate(Aid,Bid,Cid,input_ident,x0est)
+
+# compute the errors
+relative_error_percentage, vaf_error_percentage, Akaike_error = modelError(Y_ident,Y_val_prediction,r,m,30)
+print('Final model relative error %f and VAF value %f' %(relative_error_percentage, vaf_error_percentage))
+
+# plot the prediction and the real output 
+plt.plot(Y_ident[0,:100],'k',label='Real output')
+plt.plot(Y_val_prediction[0,:100],'r',label='Prediction')
+plt.legend()
+plt.xlabel('Time steps')
+plt.ylabel('Predicted and real outputs')
+#plt.savefig('results3.png')
+plt.show()
+
+#               end of code
+###############################################################################
