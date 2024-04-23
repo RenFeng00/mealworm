@@ -1,0 +1,64 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.linalg import inv, lstsq
+from scipy.signal import chirp
+
+# System matrices and input definitions for the two-mass-spring-damper system
+m1 = 20; m2 = 20; k1 = 1000; k2 = 2000; d1 = 1; d2 = 5
+Ac = np.array([
+    [0, 1, 0, 0],
+    [-(k1 + k2) / m1, -(d1 + d2) / m1, k2 / m1, d2 / m1],
+    [0, 0, 0, 1],
+    [k2 / m2, d2 / m2, -k2 / m2, -d2 / m2]
+])
+Bc = np.array([[0], [0], [0], [1 / m2]])
+Cc = np.array([[1, 0, 0, 0]])
+
+# Discretization
+sampling = 0.05
+I = np.eye(Ac.shape[0])
+A = inv(I - sampling * Ac)
+B = np.dot(A, sampling * Bc)
+C = Cc
+
+# Generate input signal (chirp)
+time = 300
+t = np.linspace(0, time * sampling, time)
+u = chirp(t, f0=0.1, f1=10, t1=time * sampling, method='linear')
+
+# Simulate system response
+x = np.zeros((4, len(t)))
+y = np.zeros(len(t))
+for i in range(1, len(t)):
+    x[:, i] = np.dot(A, x[:, i-1]) + B[:, 0] * u[i-1]
+    y[i] = np.dot(C, x[:, i])
+
+# Prepare for least squares
+past_window = 10
+future_window = 1
+A_ls = []
+b_ls = []
+for i in range(past_window, len(t) - future_window):
+    past_data = np.concatenate(([1], y[i-past_window:i]))  # Including a constant term
+    future_data = y[i + future_window]
+    A_ls.append(past_data)
+    b_ls.append(future_data)
+
+A_ls = np.array(A_ls)
+b_ls = np.array(b_ls)
+
+# Apply least squares
+params, residuals, rank, s = lstsq(A_ls, b_ls)
+
+# Output the estimated parameters
+print("Estimated parameters:", params)
+
+# Plotting
+plt.figure(figsize=(10, 5))
+plt.plot(t, y, label='True System Output')
+plt.plot(t[past_window:len(t) - future_window], np.dot(A_ls, params), label='Estimated Output', linestyle='--')
+plt.title('System Identification')
+plt.xlabel('Time (s)')
+plt.ylabel('Output')
+plt.legend()
+plt.show()
