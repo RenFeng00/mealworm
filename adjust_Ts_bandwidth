@@ -1,0 +1,74 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
+
+class PIDController:
+    def __init__(self, Kp, Ki, Kd, Ts, bandwidth):
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd / Ts  # 适应离散时间实现
+        self.Ts = Ts
+        self.bandwidth = bandwidth
+        self.integral = 0
+        self.last_error = 0
+        self.last_output = 0
+        self.alpha = np.exp(-Ts * 2 * np.pi * bandwidth)  # 用于一阶低通滤波器
+
+    def update(self, error):
+        self.integral += error * self.Ts
+        derivative = (error - self.last_error)
+        output = self.Kp * error + self.Ki * self.integral + self.Kd * derivative
+
+        # 一阶低通滤波器应用于输出
+        filtered_output = self.alpha * self.last_output + (1 - self.alpha) * output
+        self.last_output = filtered_output
+        self.last_error = error
+        return filtered_output
+
+def complex_trajectory(t, A, B, f, phase_shift, t_max):
+    if t < t_max / 3:
+        return A * (t / (t_max / 3)) * np.sin(2 * np.pi * f * t + phase_shift)
+    elif t < 2 * t_max / 3:
+        return A * np.sin(2 * np.pi * f * t + phase_shift)
+    else:
+        return A * ((t_max - t) / (t_max / 3)) * np.sin(2 * np.pi * f * t + phase_shift)
+
+def model(t, y, pid, A, B, f, phase_shift, t_max):
+    x, x_dot = y
+    y_d = complex_trajectory(t, A, B, f, phase_shift, t_max)
+    error = y_d - x
+    u_pid = pid.update(error)
+    dxdt = x_dot
+    dx_dot_dt = (-k * x - c * x_dot + u_pid) / m
+    return [dxdt, dx_dot_dt]
+
+# 系统和PID参数初始化
+m = 1.0  # 质量
+c = 0.5  # 阻尼系数
+k = 20.0  # 弹簧常数
+Kp, Ki, Kd, Ts = 150, 20, 50, 0.000001  # 控制周期Ts
+
+# 轨迹和仿真设置
+A, B, f, phase_shift, t_max = 1.0, 0, 0.5, 0, 10
+t_span = [0, t_max]
+
+bandwidths = [160, 170, 180, 190]  # 不同的带宽设置
+plt.figure(figsize=(10, 5))
+
+for bandwidth in bandwidths:
+    pid = PIDController(Kp, Ki, Kd, Ts, bandwidth)
+    t_eval = np.linspace(t_span[0], t_span[1], int(t_max / Ts))
+    y0 = [0, 0]
+    sol = solve_ivp(lambda t, y: model(t, y, pid, A, B, f, phase_shift, t_max), t_span, y0, t_eval=t_eval)
+    errors = [complex_trajectory(t, A, B, f, phase_shift, t_max) - y[0] for t, y in zip(sol.t, sol.y.T)]
+    pid.error_log = errors
+
+    # 在同一图上绘制结果
+    plt.plot(sol.t, pid.error_log, label=f'Error with Bandwidth {bandwidth} Hz')
+
+plt.title('Control Error Over Time for Different Bandwidths')
+plt.xlabel('Time (seconds)')
+plt.ylabel('Error')
+plt.legend()
+plt.grid(True)
+plt.show()
