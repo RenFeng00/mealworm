@@ -1,26 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.integrate import solve_ivp
+from scipy.integrate import odeint
 
-class PIDController:
-    def __init__(self, Kcr, Tcr, dt):
-        self.Kp = 0.6 * Kcr
-        self.Ki = 2 * self.Kp / Tcr * dt  # Integral term discretized
-        self.Kd = self.Kp * Tcr / 8 / dt  # Derivative term discretized
-        
-        self.integral = np.float64(0)
-        self.last_error = np.float64(0)
-        self.last_output = np.float64(0)
-        self.error_log = []
 
-    def update(self, error, dt):
-        self.integral += error * dt
-        derivative = (error - self.last_error) / dt
-        output = self.Kp * error + self.Ki * self.integral + self.Kd * derivative
-        self.last_error = error
-        return output
+def model(state, t, control_input, k, c, m):
+    
+    x, x_dot = state
+    x_dot_dot = (-k * x - c * x_dot + control_input) / m
+    return [x_dot, x_dot_dot]
 
-def complex_trajectory(t, A, B, f, phase_shift, t_max):
+def expected_trajectory(t, A, t_max):
     if t < t_max / 3:
         return A * t
     elif t < 2 * t_max / 3:
@@ -28,53 +17,76 @@ def complex_trajectory(t, A, B, f, phase_shift, t_max):
     else:
         return -A * (t - 2 * t_max / 3) + A * t_max / 3
 
-def model(t, y, pid, A, B, f, phase_shift, t_max, dt):
-    x, x_dot = y
-    y_d = complex_trajectory(t, A, B, f, phase_shift, t_max)
-    error = y_d - x
-    u_pid = pid.update(error, dt)
-    dxdt = x_dot
-    dx_dot_dt = (-k * x - c * x_dot + u_pid) / m
-    return [dxdt, dx_dot_dt]
+class PIDController:
+    def __init__(self, kp, ki, kd):
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.prev_error = 0
+        self.integral = 0
 
-# System and PID parameters initialization
-m = 0.1  # mass
-c = 20.0  # damping coefficient
-k = 0.01  # spring constant
-Kcr, Tcr = 200, 2  # Assumed critical gain and oscillation period
-dt = 0.01  # Time step for numerical simulation
+    def output(self, error, dt):
+        self.integral += error * dt
+        derivative = (error - self.prev_error) / dt
+        output = self.kp * error + self.ki * self.integral + self.kd * derivative
+        self.prev_error = error
+        return output
 
-# Trajectory and simulation settings
-A, B, f, phase_shift, t_max = 1.0, 0, 0.5, 0, 100
-t_span = [0, t_max]
 
-# Create a PID controller instance with Ziegler-Nichols parameters
-pid = PIDController(Kcr, Tcr, dt)
+def control_loop(model, PIDController, total_time, dt, A, t_max, k, c, m):
+   
+    state = [0.0, 0.0]
+   
+    t = np.arange(0, total_time, dt)
+   
+    reference_trajectory = [expected_trajectory(ti, A, t_max) for ti in t]
+    actual_trajectory = [state[0]]
+   
+    for i in range(len(t)-1):
+       
+        error = reference_trajectory[i] - state[0]  
+       
+        control_output = PIDController.output(error, dt)
+        
+        state = odeint(model, state, [t[i], t[i+1]], args=(control_output, k, c, m))[1]
+        actual_trajectory.append(state[0])
+        
+    return t, reference_trajectory, actual_trajectory
 
-# Solve ODE
-y0 = [0, 0]  # Initial conditions
-sol = solve_ivp(lambda t, y: model(t, y, pid, A, B, f, phase_shift, t_max, dt), t_span, y0, t_eval=np.linspace(t_span[0], t_span[1], int(t_max/dt)))
 
-# Calculate desired trajectory for comparison
-traj = [complex_trajectory(t, A, B, f, phase_shift, t_max) for t in sol.t]
-errors = [desired - actual for desired, actual in zip(traj, sol.y[0])]
+def plot_trajectory(t, reference_trajectory, actual_trajectory):
+    plt.figure()
+    plt.plot(t, reference_trajectory, label='Reference Trajectory')
+    plt.plot(t, actual_trajectory, label='Actual Trajectory')
+    plt.xlabel('Time')
+    plt.ylabel('Position')
+    plt.title('Reference vs Actual Trajectory')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
-# Plot results
-plt.figure(figsize=(12, 6))
-plt.subplot(2, 1, 1)
-plt.plot(sol.t, sol.y[0], label='Actual Path')
-plt.plot(sol.t, traj, label='Desired Path', linestyle='--')
-plt.title('Actual vs Desired Path')
-plt.xlabel('Time (s)')
-plt.ylabel('Position')
-plt.legend()
+# main
+if __name__ == "__main__":
+    
+    initial_state = np.array([0.0, 0.0])
+    
+    kp = 5.0
+    ki = 0.1
+    kd = 0.05
+   
+    controller = PIDController(kp, ki, kd)
+   
+    total_time = 50.0
+    dt = 0.01
+   
+    A = 1.0
+    t_max = total_time 
+    
+    k = 1.0  
+    c = 0.1  
+    m = 1.0  
+ 
+    t, reference_trajectory, actual_trajectory = control_loop(kinematic_system, controller, total_time, dt, A, t_max, k, c, m)
 
-plt.subplot(2, 1, 2)
-plt.plot(sol.t, errors, label='Tracking Error')
-plt.title('Error Over Time')
-plt.xlabel('Time (s)')
-plt.ylabel('Error')
-plt.legend()
-
-plt.tight_layout()
+    plot_trajectory(t, reference_trajectory, actual_trajectory)
 plt.show()
