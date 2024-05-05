@@ -1,0 +1,48 @@
+import matplotlib.pyplot as plt
+
+def calculate_position(t, t_a, t_b, a):
+    v = a * t_a
+    if 0 <= t <= t_a:
+        return 0.5 * a * t ** 2
+    elif t_a < t <= t_b:
+        return v * (t - t_a) + 0.5 * a * t_a ** 2
+
+# Initialize parameters
+t_a = 5.5  
+t_b = 15 
+a = 2   
+
+# Generate positions 
+positions = [calculate_position(t, t_a, t_b, a) for t in range(0, 15)]
+print(positions)
+
+position_gap = positions[6] - positions[5]
+position_normal_gap = positions[7] - positions[6]
+
+position_fix = position_gap - position_normal_gap
+
+position_new = []
+for j in range(6):
+   new = positions[j] + position_fix * j / 5
+   position_new.append(new)
+print(position_new)
+
+position_complete = position_new + positions[6:15]
+print(position_complete)
+
+position_diff = []
+for i in range(len(position_complete)-1):
+  diff = position_complete[i+1] - position_complete[i]
+  position_diff.append(diff)
+
+# Plotting the results
+plt.figure(figsize=(10, 5))
+plt.plot(range(14), position_diff, label='Positions Diff')
+#plt.plot(range(15), positions, label='Original Positions')
+
+plt.title('Original and Adjusted Positions Over Time')
+plt.xlabel('Time (seconds)')
+plt.ylabel('Position (meters)')
+plt.legend()
+plt.grid(True)
+plt.show()
