@@ -31,6 +31,7 @@ class PIDController:
         return output
 
 def control_loop(model_block1, model_block2, PIDController_block1, PIDController_block2, total_time, dt, A, t_max, k, c, m):
+
     state_block1 = [0.0, 0.0]
     state_block2 = [0.0, 0.0]
     
@@ -91,3 +92,10 @@ if __name__ == "__main__":
     t, reference_trajectory_block1, actual_trajectory_block1, actual_trajectory_block2 = control_loop(model_block1, model_block2, controller_block1, controller_block2, total_time, dt, A, t_max, k, c, m)
 
     plot_trajectory(t, reference_trajectory_block1, actual_trajectory_block1, actual_trajectory_block2)
+#“跟随控制”或“从属控制”是一种控制策略，其中一个系统（称为主系统）的输出被用作另一个系统（称为从属系统）的输入，以实现从属系统跟随主系统的行为。这种控制策略常见于许多工程和自动化应用中，特别是在需要多个系统协调工作时。
+#物块1是主系统，物块2是从属系统。跟随控制的基本原理是将主系统的输出作为从属系统的控制输入，以使从属系统的行为与主系统保持一致。
+#监测主系统的输出：主系统的输出（例如位置、速度或其他状态）被监测和记录。
+#将主系统的输出反馈给从属系统：主系统的输出被发送到从属系统，作为从属系统的控制输入。这意味着从属系统根据主系统的行为来调整自身的行为，以保持一致性。
+#调整从属系统的控制参数：从属系统的控制器可能需要调整其参数，以确保它能够有效地跟随主系统的行为。这可能涉及到调整PID控制器的比例、积分和微分参数，以及其他控制参数。
+#保持系统稳定性：在设计跟随控制系统时，必须考虑系统的稳定性和性能。合适的控制参数选择和系统建模对于确保系统稳定运行至关重要。
+#跟随控制被用来确保物块2能够跟随物块1的运动轨迹。物块1的输出被发送到物块2作为控制输入，从而使物块2能够以与物块1相一致的方式运动。可以确保系统之间的协调和一致性。
