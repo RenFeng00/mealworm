@@ -1,0 +1,93 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import odeint
+
+def model_block1(state, t, control_input, k, c, m):
+    x, x_dot = state
+    x_dot_dot = (-k * x - c * x_dot + control_input) / m
+    return [x_dot, x_dot_dot]
+
+def model_block2(state, t, control_input, k, c, m):
+    x, x_dot = state
+    x_dot_dot = (-k * x - c * x_dot + control_input) / m
+    return [x_dot, x_dot_dot]
+
+def expected_trajectory(t, A, t_max):
+    return A * t
+
+class PIDController:
+    def __init__(self, kp, ki, kd):
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.prev_error = 0
+        self.integral = 0
+
+    def output(self, error, dt):
+        self.integral += error * dt
+        derivative = (error - self.prev_error) / dt
+        output = self.kp * error + self.ki * self.integral + self.kd * derivative
+        self.prev_error = error
+        return output
+
+def control_loop(model_block1, model_block2, PIDController_block1, PIDController_block2, total_time, dt, A, t_max, k, c, m):
+    state_block1 = [0.0, 0.0]
+    state_block2 = [0.0, 0.0]
+    
+    t = np.arange(0, total_time, dt)
+    reference_trajectory_block1 = [expected_trajectory(ti, A, t_max) for ti in t]
+    actual_trajectory_block1 = [state_block1[0]]
+    actual_trajectory_block2 = [state_block2[0]]
+   
+    for i in range(len(t)-1):
+        error_block1 = reference_trajectory_block1[i] - state_block1[0]
+        control_output_block1 = PIDController_block1.output(error_block1, dt)
+        
+        error_block2 = state_block1[0] - state_block2[0]  # 计算Block2的位置误差
+        control_output_block2 = PIDController_block2.output(error_block2, dt)
+        
+        state_block1 = odeint(model_block1, state_block1, [t[i], t[i+1]], args=(control_output_block1, k, c, m))[1]
+        state_block2 = odeint(model_block2, state_block2, [t[i], t[i+1]], args=(control_output_block2, k, c, m))[1]
+        
+        actual_trajectory_block1.append(state_block1[0])
+        actual_trajectory_block2.append(state_block2[0])
+        
+    return t, reference_trajectory_block1, actual_trajectory_block1, actual_trajectory_block2
+
+def plot_trajectory(t, reference_trajectory_block1, actual_trajectory_block1, actual_trajectory_block2):
+    plt.figure()
+    plt.plot(t, reference_trajectory_block1, label='Reference Trajectory (Block 1)')
+    plt.plot(t, actual_trajectory_block1, label='Actual Trajectory (Block 1)')
+    plt.plot(t, actual_trajectory_block2, label='Actual Trajectory (Block 2)')
+    plt.xlabel('Time')
+    plt.ylabel('Position')
+    plt.title('Block 1 vs Block 2 Trajectory')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+if __name__ == "__main__":
+    kp_block1 = 5.0
+    ki_block1 = 0.1
+    kd_block1 = 0.05
+
+    kp_block2 = 10.0
+    ki_block2 = 0.1
+    kd_block2 = 0.05
+
+    controller_block1 = PIDController(kp_block1, ki_block1, kd_block1)
+    controller_block2 = PIDController(kp_block2, ki_block2, kd_block2)
+
+    total_time = 50.0
+    dt = 0.01
+
+    A = 1.0
+    t_max = total_time
+
+    k = 1.0
+    c = 0.1
+    m = 1.0
+
+    t, reference_trajectory_block1, actual_trajectory_block1, actual_trajectory_block2 = control_loop(model_block1, model_block2, controller_block1, controller_block2, total_time, dt, A, t_max, k, c, m)
+
+    plot_trajectory(t, reference_trajectory_block1, actual_trajectory_block1, actual_trajectory_block2)
