@@ -1,0 +1,55 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+def trajectory_planning_basic(t_a, t_b, dt, a):
+    t_values = np.arange(0, t_b + dt, dt)
+    v = a * t_a
+    positions = [0.5 * a * t ** 2 if t <= t_a else v * (t - t_a) + 0.5 * a * t_a ** 2 for t in t_values]
+    return t_values, positions
+
+def trajectory_planning_adjusted(t_a, t_b, dt, a):
+    t_values = np.arange(0, t_b + dt, dt)
+    v = a * t_a
+    positions = []
+    for t in t_values:
+        if t <= t_a:
+            position = 0.5 * a * t ** 2
+        else:
+            position = v * (t - t_a) + 0.5 * a * t_a ** 2
+        positions.append(position)
+    
+    # 调整位移，确保 t_a 时的位移精确
+    exact_position_at_ta = 0.5 * a * t_a ** 2
+    measured_position_at_ta = positions[int(t_a / dt)]
+    delta = exact_position_at_ta - measured_position_at_ta
+
+    # 将这个差值平均分布在0到t_a的时间段
+    for i in range(int(t_a / dt) + 1):
+        positions[i] += delta * (i / int(t_a / dt))
+
+    # 确保 t_a 之后的位移接续 t_a 时的位移
+    for i in range(int(t_a / dt) + 1, len(positions)):
+        positions[i] += delta
+    
+    return t_values, positions
+
+# 设置参数
+t_a = 3.145236
+t_b = 10
+dt = 0.5
+a = 2
+
+# 生成轨迹数据
+t_values_basic, positions_basic = trajectory_planning_basic(t_a, t_b, dt, a)
+t_values_adjusted, positions_adjusted = trajectory_planning_adjusted(t_a, t_b, dt, a)
+
+# 绘图
+plt.figure(figsize=(10, 6))
+plt.plot(t_values_basic, positions_basic, label='Basic Trajectory', linestyle='--')
+plt.plot(t_values_adjusted, positions_adjusted, label='Adjusted Trajectory', color='blue')
+plt.title('Adjusted Trajectory for Continuous Transition')
+plt.xlabel('Time (s)')
+plt.ylabel('Position (m)')
+plt.legend()
+plt.grid(True)
+plt.show()
