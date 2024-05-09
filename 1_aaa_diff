@@ -1,0 +1,40 @@
+import numpy as np
+from scipy.integrate import odeint
+
+def control_loop(model, PIDController, total_time, dt, A, t_max, k, c, m):
+    state = [0.0, 0.0]  # 初始状态
+    t = np.arange(0, total_time, dt)  # 时间序列
+
+    reference_trajectory = [expected_trajectory(ti, A, t_max) for ti in t]  # 预期轨迹
+    actual_trajectory = [state[0]]  # 实际轨迹，开始时只包含初始位置
+    control_outputs = []  # 用于存储每个时间步的控制输出
+    control_diffs = []  # 存储当前控制输出与上一个控制输出的差异
+
+    for i in range(len(t)-1):
+        error = reference_trajectory[i] - state[0]  # 计算误差
+        control_output = PIDController.output(error, dt)  # 计算控制输出
+        control_outputs.append(control_output)  # 存储当前控制输出
+
+        if i == 0:
+            # 第一个迭代，没有前一个控制输出，差异可以设置为0或者根据实际需求进行设置
+            previous_control_output = 0
+            diff = control_output - previous_control_output
+        else:
+            # 获取前一个控制输出并计算差异
+            previous_control_output = control_outputs[i-1]
+            diff = control_output - previous_control_output
+
+        control_diffs.append(diff)  # 存储差异
+
+        # 使用当前控制输出更新状态
+        state = odeint(model, state, [t[i], t[i+1]], args=(control_output, k, c, m))[1]
+        actual_trajectory.append(state[0])
+
+    # 在循环结束后，额外计算最后一个控制输出
+    final_error = reference_trajectory[-1] - state[0]
+    final_control_output = PIDController.output(final_error, dt)
+    control_outputs.append(final_control_output)
+    final_diff = final_control_output - control_outputs[-2]  # 计算与上一个控制输出的差异
+    control_diffs.append(final_diff)
+
+    return t, reference_trajectory, actual_trajectory, control_outputs, control_diffs
